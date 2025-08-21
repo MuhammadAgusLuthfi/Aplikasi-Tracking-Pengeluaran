@@ -1,0 +1,2237 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracking Pengeluaran Pro</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --success-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --info-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            
+            --text-primary: #2c3e50;
+            --text-secondary: #7f8c8d;
+            --background-light: #f8f9fa;
+            --white: #ffffff;
+            --border-radius: 15px;
+            --shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            --shadow-hover: 0 15px 35px rgba(0, 0, 0, 0.15);
+            
+            --category-food: #e74c3c;
+            --category-transport: #3498db;
+            --category-entertainment: #9b59b6;
+            --category-shopping: #e67e22;
+            --category-health: #2ecc71;
+            --category-education: #f39c12;
+            --category-bills: #34495e;
+            --category-others: #95a5a6;
+        }
+
+        [data-theme="dark"] {
+            --text-primary: #ecf0f1;
+            --text-secondary: #bdc3c7;
+            --background-light: #2c3e50;
+            --white: #34495e;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--primary-gradient);
+            min-height: 100vh;
+            padding: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        [data-theme="dark"] .container {
+            background: rgba(52, 73, 94, 0.95);
+        }
+
+        .header {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 20px 30px;
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .header-left h1 {
+            font-size: 2.2rem;
+            margin-bottom: 5px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .current-date {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .theme-toggle {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .sync-status {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sync-status.connected {
+            background: rgba(39, 174, 96, 0.2);
+            color: #27ae60;
+            border: 2px solid rgba(39, 174, 96, 0.3);
+        }
+
+        .sync-status.disconnected {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+            border: 2px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .sync-status.syncing {
+            background: rgba(241, 196, 15, 0.2);
+            color: #f1c40f;
+            border: 2px solid rgba(241, 196, 15, 0.3);
+        }
+
+        .main-content {
+            padding: 20px 30px;
+        }
+
+        .tabs {
+            display: flex;
+            background: var(--background-light);
+            border-radius: var(--border-radius);
+            margin-bottom: 25px;
+            overflow-x: auto;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .tab.active {
+            background: var(--info-gradient);
+            color: white;
+            border-radius: var(--border-radius);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .input-section {
+            background: var(--secondary-gradient);
+            padding: 25px;
+            border-radius: var(--border-radius);
+            margin-bottom: 25px;
+            color: white;
+        }
+
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            align-items: end;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-group label {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .input-group input,
+        .input-group select {
+            padding: 12px 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-width: 120px;
+        }
+
+        .btn-primary { background: var(--info-gradient); color: white; }
+        .btn-success { background: var(--success-gradient); color: white; }
+        .btn-warning { background: var(--warning-gradient); color: white; }
+        .btn-danger { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .card {
+            background: var(--white);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            box-shadow: var(--shadow);
+            border-left: 5px solid;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);
+            border-radius: 50%;
+            transform: translate(30px, -30px);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .card.today { border-left-color: #4facfe; }
+        .card.month { border-left-color: #f093fb; }
+        .card.year { border-left-color: #667eea; }
+        .card.budget { border-left-color: #11998e; }
+
+        .card h3 {
+            color: var(--text-primary);
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .amount {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--background-light);
+            border-radius: 4px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--success-gradient);
+            transition: width 0.3s ease;
+            border-radius: 4px;
+        }
+
+        .progress-fill.over-budget {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        }
+
+        .average {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .chart-container {
+            background: var(--white);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            box-shadow: var(--shadow);
+            margin-bottom: 25px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+            margin-top: 20px;
+        }
+
+        .category-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .category-item {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .category-item:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .category-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: white;
+            font-weight: bold;
+        }
+
+        .history {
+            background: var(--white);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            box-shadow: var(--shadow);
+        }
+
+        .history-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 15px;
+            border: 2px solid var(--background-light);
+            border-radius: 10px;
+            font-size: 1rem;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #4facfe;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .history h3 {
+            color: var(--text-primary);
+            font-size: 1.4rem;
+            margin: 0;
+        }
+
+        .history-item {
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            gap: 15px;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: var(--background-light);
+            border-radius: 10px;
+            border-left: 4px solid;
+            transition: all 0.3s ease;
+        }
+
+        .history-item:hover {
+            transform: translateX(5px);
+            box-shadow: var(--shadow);
+        }
+
+        .history-date {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+
+        .history-description {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .history-category {
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .history-amount {
+            font-weight: bold;
+            color: #e74c3c;
+            font-size: 1rem;
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #e74c3c;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .delete-btn:hover {
+            background: rgba(231, 76, 60, 0.1);
+            transform: scale(1.1);
+        }
+
+        .no-data {
+            text-align: center;
+            color: var(--text-secondary);
+            font-style: italic;
+            padding: 40px;
+            font-size: 1.1rem;
+        }
+
+        .budget-section {
+            background: var(--white);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            box-shadow: var(--shadow);
+            margin-bottom: 25px;
+        }
+
+        .budget-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            align-items: end;
+            margin-bottom: 20px;
+        }
+
+        .import-section {
+            background: #e8f5e8;
+            border: 2px dashed #27ae60;
+            border-radius: var(--border-radius);
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 25px;
+            transition: all 0.3s ease;
+        }
+
+        .import-section:hover {
+            background: #d5f4d5;
+        }
+
+        .import-section input[type="file"] {
+            display: none;
+        }
+
+        .import-label {
+            display: inline-block;
+            padding: 15px 30px;
+            background: var(--success-gradient);
+            color: white;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .import-label:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--white);
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-hover);
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--background-light);
+        }
+
+        .close {
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: color 0.3s ease;
+        }
+
+        .close:hover {
+            color: #e74c3c;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            z-index: 1001;
+            transform: translateX(400px);
+            transition: all 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success { background: var(--success-gradient); }
+        .notification.error { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); }
+        .notification.info { background: var(--info-gradient); }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            body { padding: 5px; }
+            
+            .container { border-radius: 15px; }
+            
+            .header {
+                padding: 15px 20px;
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .header-left h1 { font-size: 1.8rem; }
+            
+            .main-content { padding: 15px 20px; }
+            
+            .input-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .tabs {
+                flex-wrap: wrap;
+                gap: 5px;
+            }
+
+            .tab {
+                flex: none;
+                min-width: 120px;
+                padding: 12px 15px;
+                font-size: 0.9rem;
+            }
+
+            .dashboard {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .amount { font-size: 1.5rem; }
+
+            .action-buttons {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .btn {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+
+            .history-item {
+                grid-template-columns: 1fr;
+                gap: 10px;
+                text-align: center;
+            }
+
+            .history-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-box {
+                min-width: auto;
+            }
+
+            .chart-wrapper {
+                height: 250px;
+            }
+
+            .category-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .budget-form {
+                grid-template-columns: 1fr;
+            }
+
+            .modal-content {
+                padding: 20px;
+                margin: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header-left h1 { font-size: 1.5rem; }
+            .card { padding: 15px; }
+            .amount { font-size: 1.3rem; }
+            .chart-wrapper { height: 200px; }
+        }
+
+        /* Animation untuk loading */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--background-light);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--text-secondary);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>💰 Expense Tracker Pro</h1>
+                <div class="current-date" id="currentDate"></div>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" onclick="toggleTheme()">🌙 Mode Gelap</button>
+                <div class="sync-status disconnected" id="syncStatus">
+                    <span>●</span> Tidak Tersambung
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('dashboard')">📊 Dashboard</button>
+                <button class="tab" onclick="switchTab('add-expense')">➕ Tambah</button>
+                <button class="tab" onclick="switchTab('budget')">💡 Budget</button>
+                <button class="tab" onclick="switchTab('analytics')">📈 Analisis</button>
+                <button class="tab" onclick="switchTab('history')">📋 Riwayat</button>
+                <button class="tab" onclick="switchTab('settings')">⚙️ Pengaturan</button>
+            </div>
+
+            <!-- Dashboard Tab -->
+            <div class="tab-content active" id="dashboard">
+                <div class="dashboard">
+                    <div class="card today">
+                        <h3>📅 Hari Ini</h3>
+                        <div class="amount" id="todayAmount">Rp 0</div>
+                        <div class="average" id="todayDate"></div>
+                    </div>
+
+                    <div class="card month">
+                        <h3>📊 Bulan Ini</h3>
+                        <div class="amount" id="monthAmount">Rp 0</div>
+                        <div class="average">Rata-rata: <span id="monthAverage">Rp 0</span>/hari</div>
+                    </div>
+
+                    <div class="card year">
+                        <h3>📈 Tahun Ini</h3>
+                        <div class="amount" id="yearAmount">Rp 0</div>
+                        <div class="average">Rata-rata: <span id="yearAverage">Rp 0</span>/bulan</div>
+                    </div>
+
+                    <div class="card budget">
+                        <h3>💡 Budget Status</h3>
+                        <div class="amount" id="budgetStatus">Belum diatur</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="budgetProgress"></div>
+                        </div>
+                        <div class="average" id="budgetText">Atur budget bulanan</div>
+                    </div>
+                </div>
+
+                <!-- Quick Category Stats -->
+                <div class="category-stats" id="categoryStats"></div>
+            </div>
+
+            <!-- Add Expense Tab -->
+            <div class="tab-content" id="add-expense">
+                <div class="input-section">
+                    <div class="input-grid">
+                        <div class="input-group">
+                            <label for="expenseAmount">💰 Nominal</label>
+                            <input type="number" id="expenseAmount" placeholder="Masukkan nominal" min="0">
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="expenseCategory">🏷️ Kategori</label>
+                            <select id="expenseCategory">
+                                <option value="food">🍔 Makanan</option>
+                                <option value="transport">🚗 Transportasi</option>
+                                <option value="entertainment">🎬 Hiburan</option>
+                                <option value="shopping">🛍️ Belanja</option>
+                                <option value="health">⚕️ Kesehatan</option>
+                                <option value="education">📚 Edukasi</option>
+                                <option value="bills">💡 Tagihan</option>
+                                <option value="others">📦 Lainnya</option>
+                            </select>
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="expenseDescription">📝 Deskripsi</label>
+                            <input type="text" id="expenseDescription" placeholder="Deskripsi (opsional)">
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="expenseDate">📅 Tanggal</label>
+                            <input type="date" id="expenseDate">
+                        </div>
+                        
+                        <div class="input-group">
+                            <label>&nbsp;</label>
+                            <button class="btn btn-primary" onclick="addExpense()" id="addBtn">
+                                <span>Tambah Pengeluaran</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Budget Tab -->
+            <div class="tab-content" id="budget">
+                <div class="budget-section">
+                    <h3>💡 Pengaturan Budget</h3>
+                    <div class="budget-form">
+                        <div class="input-group">
+                            <label for="monthlyBudget">Budget Bulanan</label>
+                            <input type="number" id="monthlyBudget" placeholder="Masukkan budget bulanan" min="0">
+                        </div>
+                        <div class="input-group">
+                            <label>&nbsp;</label>
+                            <button class="btn btn-success" onclick="setBudget()">Atur Budget</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Budget per Category -->
+                <div class="budget-section">
+                    <h3>🏷️ Budget per Kategori</h3>
+                    <div id="categoryBudgets"></div>
+                </div>
+            </div>
+
+            <!-- Analytics Tab -->
+            <div class="tab-content" id="analytics">
+                <div class="chart-container">
+                    <h3>📈 Tren Pengeluaran Mingguan</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="weeklyChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>🥧 Pengeluaran per Kategori</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>📊 Perbandingan Bulanan</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="monthlyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div class="tab-content" id="history">
+                <div class="history">
+                    <div class="history-header">
+                        <h3>📋 Riwayat Pengeluaran</h3>
+                        <div class="action-buttons">
+                            <button class="btn btn-success" onclick="exportToExcel()">
+                                📊 Export Excel
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="history-controls">
+                        <input type="text" class="search-box" id="searchBox" placeholder="🔍 Cari transaksi..." onkeyup="filterHistory()">
+                        <select id="categoryFilter" onchange="filterHistory()">
+                            <option value="">Semua Kategori</option>
+                            <option value="food">🍔 Makanan</option>
+                            <option value="transport">🚗 Transportasi</option>
+                            <option value="entertainment">🎬 Hiburan</option>
+                            <option value="shopping">🛍️ Belanja</option>
+                            <option value="health">⚕️ Kesehatan</option>
+                            <option value="education">📚 Edukasi</option>
+                            <option value="bills">💡 Tagihan</option>
+                            <option value="others">📦 Lainnya</option>
+                        </select>
+                        <input type="date" id="dateFrom" onchange="filterHistory()" title="Dari tanggal">
+                        <input type="date" id="dateTo" onchange="filterHistory()" title="Sampai tanggal">
+                        <button class="btn btn-warning" onclick="clearFilters()">🗑️ Reset</button>
+                    </div>
+
+                    <div id="historyList">
+                        <div class="no-data">Belum ada data pengeluaran</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div class="tab-content" id="settings">
+                <!-- Import Section -->
+                <div class="import-section">
+                    <h3>📥 Import Data</h3>
+                    <p>Import data pengeluaran dari file Excel (.xlsx, .xls) atau CSV</p>
+                    <input type="file" id="importFile" accept=".xlsx,.xls,.csv" onchange="importData()">
+                    <label for="importFile" class="import-label">
+                        📂 Pilih File untuk Import
+                    </label>
+                </div>
+
+                <!-- Export Section -->
+                <div class="action-buttons">
+                    <button class="btn btn-success" onclick="exportToExcel()">
+                        📊 Export ke Excel
+                    </button>
+                    <button class="btn btn-warning" onclick="syncWithFirebase()" id="syncBtn">
+                        🔄 Sinkronisasi Manual
+                    </button>
+                    <button class="btn btn-danger" onclick="showClearDataModal()">
+                        🗑️ Hapus Semua Data
+                    </button>
+                </div>
+
+                <!-- Firebase Config Info -->
+                <div class="budget-section" id="firebaseConfig">
+                    <h3>⚙️ Konfigurasi Firebase</h3>
+                    <p><strong>Untuk mengaktifkan sinkronisasi real-time:</strong></p>
+                    <p>1. Buat project di <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a></p>
+                    <p>2. Aktifkan Realtime Database</p>
+                    <p>3. Ganti konfigurasi Firebase di bagian JavaScript</p>
+                    <p>4. Atur rules database: <code>{ "rules": { ".read": true, ".write": true } }</code></p>
+                    <p><em>Saat ini menggunakan localStorage sebagai backup.</em></p>
+                </div>
+
+                <!-- Reminder Settings -->
+                <div class="budget-section">
+                    <h3>⏰ Pengaturan Reminder</h3>
+                    <div class="budget-form">
+                        <div class="input-group">
+                            <label>
+                                <input type="checkbox" id="dailyReminder" onchange="toggleReminder()">
+                                Aktifkan reminder harian
+                            </label>
+                        </div>
+                        <div class="input-group">
+                            <label for="reminderTime">Waktu Reminder</label>
+                            <input type="time" id="reminderTime" value="20:00" onchange="setReminderTime()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal untuk konfirmasi hapus -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚠️ Konfirmasi Hapus</h3>
+                <span class="close" onclick="closeModal('deleteModal')">&times;</span>
+            </div>
+            <p>Apakah Anda yakin ingin menghapus transaksi ini?</p>
+            <div class="action-buttons">
+                <button class="btn btn-danger" onclick="confirmDelete()">Hapus</button>
+                <button class="btn btn-primary" onclick="closeModal('deleteModal')">Batal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal untuk hapus semua data -->
+    <div id="clearDataModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚠️ Hapus Semua Data</h3>
+                <span class="close" onclick="closeModal('clearDataModal')">&times;</span>
+            </div>
+            <p><strong>PERINGATAN:</strong> Tindakan ini akan menghapus SEMUA data pengeluaran Anda dan tidak dapat dibatalkan!</p>
+            <p>Ketik "HAPUS SEMUA" untuk mengkonfirmasi:</p>
+            <input type="text" id="confirmText" placeholder="Ketik HAPUS SEMUA">
+            <div class="action-buttons">
+                <button class="btn btn-danger" onclick="confirmClearData()">Hapus Semua Data</button>
+                <button class="btn btn-primary" onclick="closeModal('clearDataModal')">Batal</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAhasNVV0N0FtFbWqBpA1ndb7bydhaEC74",
+  authDomain: "aplikasi-tracking-pengeluaran.firebaseapp.com",
+  databaseURL: "https://aplikasi-tracking-pengeluaran-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "aplikasi-tracking-pengeluaran",
+  storageBucket: "aplikasi-tracking-pengeluaran.firebasestorage.app",
+  messagingSenderId: "839783974226",
+  appId: "1:839783974226:web:a76a61196b56ca54c3e68b",
+  measurementId: "G-BJ33WWNTYN"
+        };
+
+        // Global variables
+        let expenseDatabase = {};
+        let budgetSettings = {};
+        let firebaseInitialized = false;
+        let database = null;
+        let isOnline = navigator.onLine;
+        let charts = {};
+        let deleteTargetId = null;
+        let currentTheme = localStorage.getItem('theme') || 'light';
+
+        // Categories configuration
+        const categories = {
+            food: { name: 'Makanan', icon: '🍔', color: '#e74c3c' },
+            transport: { name: 'Transportasi', icon: '🚗', color: '#3498db' },
+            entertainment: { name: 'Hiburan', icon: '🎬', color: '#9b59b6' },
+            shopping: { name: 'Belanja', icon: '🛍️', color: '#e67e22' },
+            health: { name: 'Kesehatan', icon: '⚕️', color: '#2ecc71' },
+            education: { name: 'Edukasi', icon: '📚', color: '#f39c12' },
+            bills: { name: 'Tagihan', icon: '💡', color: '#34495e' },
+            others: { name: 'Lainnya', icon: '📦', color: '#95a5a6' }
+        };
+
+        // Theme management
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.body.setAttribute('data-theme', currentTheme);
+            localStorage.setItem('theme', currentTheme);
+            
+            const button = document.querySelector('.theme-toggle');
+            button.textContent = currentTheme === 'dark' ? '☀️ Mode Terang' : '🌙 Mode Gelap';
+            
+            // Refresh charts with new theme
+            setTimeout(updateCharts, 100);
+        }
+
+        // Tab management
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+
+            // Load specific content based on tab
+            switch(tabName) {
+                case 'dashboard':
+                    updateDashboard();
+                    break;
+                case 'analytics':
+                    setTimeout(updateCharts, 100);
+                    break;
+                case 'history':
+                    updateHistory();
+                    break;
+                case 'budget':
+                    updateBudgetDisplay();
+                    break;
+            }
+        }
+
+        // Initialize Firebase
+        function initializeFirebase() {
+            try {
+                if (firebaseConfig.apiKey === "your-api-key-here") {
+                    console.warn("Firebase belum dikonfigurasi, menggunakan localStorage");
+                    updateSyncStatus('disconnected', 'Konfigurasi Firebase Diperlukan');
+                    return false;
+                }
+
+                firebase.initializeApp(firebaseConfig);
+                database = firebase.database();
+                firebaseInitialized = true;
+                
+                setupFirebaseListeners();
+                updateSyncStatus('connected', 'Tersambung ke Firebase');
+                
+                document.getElementById('firebaseConfig').style.display = 'none';
+                
+                return true;
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                updateSyncStatus('disconnected', 'Error Koneksi Firebase');
+                return false;
+            }
+        }
+
+        // Setup Firebase listeners
+        function setupFirebaseListeners() {
+            if (!firebaseInitialized) return;
+
+            const expensesRef = database.ref('expenses');
+            expensesRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    expenseDatabase = data;
+                    saveToLocalStorage();
+                    updateDashboard();
+                }
+            });
+
+            const budgetRef = database.ref('budgets');
+            budgetRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    budgetSettings = data;
+                    localStorage.setItem('budgetSettings', JSON.stringify(budgetSettings));
+                    updateDashboard();
+                }
+            });
+
+            const connectedRef = database.ref(".info/connected");
+            connectedRef.on("value", (snap) => {
+                if (snap.val() === true) {
+                    updateSyncStatus('connected', 'Tersambung ke Firebase');
+                } else {
+                    updateSyncStatus('disconnected', 'Koneksi Firebase Terputus');
+                }
+            });
+        }
+
+        // Update sync status
+        function updateSyncStatus(status, message) {
+            const syncStatus = document.getElementById('syncStatus');
+            syncStatus.className = `sync-status ${status}`;
+            
+            let icon = '●';
+            if (status === 'connected') icon = '✓';
+            else if (status === 'syncing') icon = '⟳';
+            else if (status === 'disconnected') icon = '✕';
+            
+            syncStatus.innerHTML = `<span>${icon}</span> ${message}`;
+        }
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.classList.add('show'), 100);
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => document.body.removeChild(notification), 300);
+            }, 3000);
+        }
+
+        // Load data from localStorage
+        function loadFromLocalStorage() {
+            const savedData = localStorage.getItem('expenseData');
+            if (savedData) {
+                expenseDatabase = JSON.parse(savedData);
+            }
+
+            const savedBudget = localStorage.getItem('budgetSettings');
+            if (savedBudget) {
+                budgetSettings = JSON.parse(savedBudget);
+            }
+        }
+
+        // Save data to localStorage
+        function saveToLocalStorage() {
+            localStorage.setItem('expenseData', JSON.stringify(expenseDatabase));
+            localStorage.setItem('budgetSettings', JSON.stringify(budgetSettings));
+        }
+
+        // Save to Firebase
+        function saveToFirebase(callback = null) {
+            if (!firebaseInitialized || !isOnline) {
+                if (callback) callback(false);
+                return;
+            }
+
+            updateSyncStatus('syncing', 'Menyinkronkan...');
+            
+            Promise.all([
+                database.ref('expenses').set(expenseDatabase),
+                database.ref('budgets').set(budgetSettings)
+            ])
+            .then(() => {
+                updateSyncStatus('connected', 'Data Tersinkronisasi');
+                if (callback) callback(true);
+            })
+            .catch((error) => {
+                console.error("Error saving to Firebase:", error);
+                updateSyncStatus('disconnected', 'Error Sinkronisasi');
+                if (callback) callback(false);
+            });
+        }
+
+        // Manual sync
+        function syncWithFirebase() {
+            if (!firebaseInitialized) {
+                showNotification('Firebase belum dikonfigurasi!', 'error');
+                return;
+            }
+
+            const syncBtn = document.getElementById('syncBtn');
+            syncBtn.disabled = true;
+            syncBtn.innerHTML = '<div class="loading-spinner"></div> Menyinkronkan...';
+            
+            saveToFirebase((success) => {
+                syncBtn.disabled = false;
+                syncBtn.innerHTML = '🔄 Sinkronisasi Manual';
+                
+                if (success) {
+                    showNotification('Data berhasil disinkronkan!', 'success');
+                } else {
+                    showNotification('Gagal menyinkronkan data!', 'error');
+                }
+            });
+        }
+
+        // Format currency
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                minimumFractionDigits: 0
+            }).format(amount);
+        }
+
+        // Format date
+        function formatDate(date) {
+            return date.toLocaleDateString('id-ID', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        // Get date string
+        function getDateString(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        // Update current date
+        function updateCurrentDate() {
+            const now = new Date();
+            document.getElementById('currentDate').textContent = formatDate(now);
+            document.getElementById('todayDate').textContent = formatDate(now);
+            document.getElementById('expenseDate').value = getDateString(now);
+        }
+
+        // Generate unique ID
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        // Add expense
+        function addExpense() {
+            const amountInput = document.getElementById('expenseAmount');
+            const categorySelect = document.getElementById('expenseCategory');
+            const descriptionInput = document.getElementById('expenseDescription');
+            const dateInput = document.getElementById('expenseDate');
+
+            const amount = parseFloat(amountInput.value);
+            const category = categorySelect.value;
+            const description = descriptionInput.value || '';
+            const date = dateInput.value;
+
+            if (!amount || amount <= 0) {
+                showNotification('Masukkan nominal pengeluaran yang valid!', 'error');
+                return;
+            }
+
+            if (!date) {
+                showNotification('Pilih tanggal pengeluaran!', 'error');
+                return;
+            }
+
+            const expense = {
+                id: generateId(),
+                amount: amount,
+                category: category,
+                description: description,
+                date: date,
+                timestamp: new Date().getTime()
+            };
+
+            // Add to database
+            if (!expenseDatabase[date]) {
+                expenseDatabase[date] = {};
+            }
+            expenseDatabase[date][expense.id] = expense;
+
+            // Save to localStorage
+            saveToLocalStorage();
+
+            // Save to Firebase if available
+            if (firebaseInitialized && isOnline) {
+                saveToFirebase();
+            }
+
+            // Reset inputs
+            amountInput.value = '';
+            descriptionInput.value = '';
+
+            // Update dashboard
+            updateDashboard();
+            updateHistory();
+
+            showNotification(`Pengeluaran ${formatCurrency(amount)} berhasil ditambahkan!`, 'success');
+
+            // Check budget
+            checkBudgetWarning(date, amount);
+        }
+
+        // Check budget warning
+        function checkBudgetWarning(date, amount) {
+            const month = date.substring(0, 7); // YYYY-MM
+            const monthlyExpenses = getMonthlyExpenses(month);
+            
+            if (budgetSettings.monthly && monthlyExpenses > budgetSettings.monthly) {
+                showNotification('⚠️ Pengeluaran bulan ini melebihi budget!', 'error');
+            } else if (budgetSettings.monthly && monthlyExpenses > budgetSettings.monthly * 0.8) {
+                showNotification('⚠️ Pengeluaran mendekati 80% budget bulanan!', 'error');
+            }
+        }
+
+        // Set budget
+        function setBudget() {
+            const monthlyInput = document.getElementById('monthlyBudget');
+            const monthly = parseFloat(monthlyInput.value);
+
+            if (!monthly || monthly <= 0) {
+                showNotification('Masukkan budget yang valid!', 'error');
+                return;
+            }
+
+            budgetSettings.monthly = monthly;
+            
+            saveToLocalStorage();
+            if (firebaseInitialized && isOnline) {
+                saveToFirebase();
+            }
+
+            updateDashboard();
+            showNotification('Budget berhasil diatur!', 'success');
+        }
+
+        // Get monthly expenses
+        function getMonthlyExpenses(month) {
+            let total = 0;
+            Object.keys(expenseDatabase).forEach(date => {
+                if (date.startsWith(month)) {
+                    Object.values(expenseDatabase[date]).forEach(expense => {
+                        total += expense.amount;
+                    });
+                }
+            });
+            return total;
+        }
+
+        // Get category expenses for a month
+        function getCategoryExpenses(month, category) {
+            let total = 0;
+            Object.keys(expenseDatabase).forEach(date => {
+                if (date.startsWith(month)) {
+                    Object.values(expenseDatabase[date]).forEach(expense => {
+                        if (expense.category === category) {
+                            total += expense.amount;
+                        }
+                    });
+                }
+            });
+            return total;
+        }
+
+        // Update dashboard
+        function updateDashboard() {
+            const today = new Date();
+            const todayString = getDateString(today);
+            const thisMonth = todayString.substring(0, 7);
+
+            // Today's expenses
+            let todayAmount = 0;
+            if (expenseDatabase[todayString]) {
+                Object.values(expenseDatabase[todayString]).forEach(expense => {
+                    todayAmount += expense.amount;
+                });
+            }
+            document.getElementById('todayAmount').textContent = formatCurrency(todayAmount);
+
+            // This month's expenses
+            const monthAmount = getMonthlyExpenses(thisMonth);
+            document.getElementById('monthAmount').textContent = formatCurrency(monthAmount);
+
+            // Calculate monthly average
+            const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+            const daysInMonth = today.getDate();
+            const monthAverage = daysInMonth > 0 ? monthAmount / daysInMonth : 0;
+            document.getElementById('monthAverage').textContent = formatCurrency(monthAverage);
+
+            // This year's expenses
+            let yearAmount = 0;
+            const thisYear = today.getFullYear().toString();
+            Object.keys(expenseDatabase).forEach(date => {
+                if (date.startsWith(thisYear)) {
+                    Object.values(expenseDatabase[date]).forEach(expense => {
+                        yearAmount += expense.amount;
+                    });
+                }
+            });
+            document.getElementById('yearAmount').textContent = formatCurrency(yearAmount);
+
+            const monthsElapsed = today.getMonth() + 1;
+            const yearAverage = monthsElapsed > 0 ? yearAmount / monthsElapsed : 0;
+            document.getElementById('yearAverage').textContent = formatCurrency(yearAverage);
+
+            // Budget status
+            updateBudgetStatus(monthAmount);
+            
+            // Category stats
+            updateCategoryStats(thisMonth);
+        }
+
+        // Update budget status
+        function updateBudgetStatus(monthAmount) {
+            const budgetElement = document.getElementById('budgetStatus');
+            const progressElement = document.getElementById('budgetProgress');
+            const textElement = document.getElementById('budgetText');
+
+            if (!budgetSettings.monthly) {
+                budgetElement.textContent = 'Belum diatur';
+                progressElement.style.width = '0%';
+                textElement.textContent = 'Atur budget bulanan';
+                return;
+            }
+
+            const percentage = (monthAmount / budgetSettings.monthly) * 100;
+            const remaining = budgetSettings.monthly - monthAmount;
+
+            budgetElement.textContent = formatCurrency(remaining);
+            progressElement.style.width = Math.min(percentage, 100) + '%';
+            
+            if (percentage > 100) {
+                progressElement.classList.add('over-budget');
+                textElement.textContent = `Melebihi budget ${formatCurrency(monthAmount - budgetSettings.monthly)}`;
+            } else {
+                progressElement.classList.remove('over-budget');
+                textElement.textContent = `Sisa ${Math.round(100 - percentage)}% dari budget`;
+            }
+        }
+
+        // Update category stats
+        function updateCategoryStats(month) {
+            const container = document.getElementById('categoryStats');
+            const categoryData = {};
+
+            // Calculate category totals
+            Object.keys(expenseDatabase).forEach(date => {
+                if (date.startsWith(month)) {
+                    Object.values(expenseDatabase[date]).forEach(expense => {
+                        categoryData[expense.category] = (categoryData[expense.category] || 0) + expense.amount;
+                    });
+                }
+            });
+
+            // Sort by amount
+            const sortedCategories = Object.entries(categoryData)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8); // Top 8 categories
+
+            container.innerHTML = sortedCategories.map(([category, amount]) => {
+                const categoryInfo = categories[category];
+                return `
+                    <div class="category-item">
+                        <div class="category-icon" style="background-color: ${categoryInfo.color}">
+                            ${categoryInfo.icon}
+                        </div>
+                        <div style="flex: 1">
+                            <div style="font-weight: 600; color: var(--text-primary);">${categoryInfo.name}</div>
+                            <div style="color: var(--text-secondary); font-size: 0.9rem;">${formatCurrency(amount)}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('') || '<div class="no-data">Belum ada pengeluaran bulan ini</div>';
+        }
+
+        // Update charts
+        function updateCharts() {
+            updateWeeklyChart();
+            updateCategoryChart();
+            updateMonthlyChart();
+        }
+
+        // Update weekly chart
+        function updateWeeklyChart() {
+            const ctx = document.getElementById('weeklyChart');
+            if (!ctx) return;
+
+            const today = new Date();
+            const labels = [];
+            const data = [];
+
+            // Get last 7 days
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                const dateString = getDateString(date);
+                
+                labels.push(date.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }));
+                
+                let dayTotal = 0;
+                if (expenseDatabase[dateString]) {
+                    Object.values(expenseDatabase[dateString]).forEach(expense => {
+                        dayTotal += expense.amount;
+                    });
+                }
+                data.push(dayTotal);
+            }
+
+            if (charts.weekly) {
+                charts.weekly.destroy();
+            }
+
+            charts.weekly = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Pengeluaran Harian',
+                        data: data,
+                        borderColor: '#4facfe',
+                        backgroundColor: 'rgba(79, 172, 254, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return 'Rp ' + value.toLocaleString('id-ID');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update category chart
+        function updateCategoryChart() {
+            const ctx = document.getElementById('categoryChart');
+            if (!ctx) return;
+
+            const today = new Date();
+            const thisMonth = getDateString(today).substring(0, 7);
+            const categoryData = {};
+            const colors = [];
+            const labels = [];
+
+            // Calculate category totals for this month
+            Object.keys(expenseDatabase).forEach(date => {
+                if (date.startsWith(thisMonth)) {
+                    Object.values(expenseDatabase[date]).forEach(expense => {
+                        categoryData[expense.category] = (categoryData[expense.category] || 0) + expense.amount;
+                    });
+                }
+            });
+
+            // Prepare data for chart
+            Object.entries(categoryData).forEach(([category, amount]) => {
+                const categoryInfo = categories[category];
+                labels.push(categoryInfo.name);
+                colors.push(categoryInfo.color);
+            });
+
+            const data = Object.values(categoryData);
+
+            if (charts.category) {
+                charts.category.destroy();
+            }
+
+            charts.category = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors,
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return context.label + ': ' + formatCurrency(value) + ' (' + percentage + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update monthly chart
+        function updateMonthlyChart() {
+            const ctx = document.getElementById('monthlyChart');
+            if (!ctx) return;
+
+            const today = new Date();
+            const labels = [];
+            const data = [];
+
+            // Get last 6 months
+            for (let i = 5; i >= 0; i--) {
+                const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+                const monthString = getDateString(date).substring(0, 7);
+                
+                labels.push(date.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }));
+                
+                const monthTotal = getMonthlyExpenses(monthString);
+                data.push(monthTotal);
+            }
+
+            if (charts.monthly) {
+                charts.monthly.destroy();
+            }
+
+            charts.monthly = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Pengeluaran Bulanan',
+                        data: data,
+                        backgroundColor: 'rgba(240, 147, 251, 0.8)',
+                        borderColor: '#f093fb',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return 'Rp ' + value.toLocaleString('id-ID');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update history with filtering
+        function updateHistory() {
+            const historyList = document.getElementById('historyList');
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+
+            // Collect all expenses
+            const allExpenses = [];
+            Object.keys(expenseDatabase).forEach(date => {
+                Object.values(expenseDatabase[date]).forEach(expense => {
+                    allExpenses.push({...expense, date});
+                });
+            });
+
+            // Filter expenses
+            let filteredExpenses = allExpenses.filter(expense => {
+                // Search filter
+                if (searchTerm && !expense.description.toLowerCase().includes(searchTerm) && 
+                    !categories[expense.category].name.toLowerCase().includes(searchTerm)) {
+                    return false;
+                }
+
+                // Category filter
+                if (categoryFilter && expense.category !== categoryFilter) {
+                    return false;
+                }
+
+                // Date range filter
+                if (dateFrom && expense.date < dateFrom) {
+                    return false;
+                }
+                if (dateTo && expense.date > dateTo) {
+                    return false;
+                }
+
+                return true;
+            });
+
+            // Sort by date (newest first)
+            filteredExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (filteredExpenses.length === 0) {
+                historyList.innerHTML = '<div class="no-data">Tidak ada data yang sesuai filter</div>';
+                return;
+            }
+
+            historyList.innerHTML = filteredExpenses.map(expense => {
+                const categoryInfo = categories[expense.category];
+                const date = new Date(expense.date + 'T00:00:00');
+                
+                return `
+                    <div class="history-item" style="border-left-color: ${categoryInfo.color}">
+                        <div class="history-date">${formatDate(date)}</div>
+                        <div style="flex: 1">
+                            <div style="font-weight: 600; color: var(--text-primary);">
+                                ${expense.description || 'Tidak ada deskripsi'}
+                            </div>
+                            <div class="history-description">
+                                <span class="history-category" style="background-color: ${categoryInfo.color}">
+                                    ${categoryInfo.icon} ${categoryInfo.name}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="history-amount">${formatCurrency(expense.amount)}</div>
+                        <button class="delete-btn" onclick="showDeleteModal('${expense.id}', '${expense.date}')" title="Hapus">
+                            🗑️
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Filter history
+        function filterHistory() {
+            updateHistory();
+        }
+
+        // Clear filters
+        function clearFilters() {
+            document.getElementById('searchBox').value = '';
+            document.getElementById('categoryFilter').value = '';
+            document.getElementById('dateFrom').value = '';
+            document.getElementById('dateTo').value = '';
+            updateHistory();
+        }
+
+        // Show delete modal
+        function showDeleteModal(expenseId, date) {
+            deleteTargetId = {id: expenseId, date: date};
+            document.getElementById('deleteModal').style.display = 'block';
+        }
+
+        // Confirm delete
+        function confirmDelete() {
+            if (!deleteTargetId) return;
+
+            const {id, date} = deleteTargetId;
+            
+            if (expenseDatabase[date] && expenseDatabase[date][id]) {
+                delete expenseDatabase[date][id];
+                
+                // Remove date if no expenses left
+                if (Object.keys(expenseDatabase[date]).length === 0) {
+                    delete expenseDatabase[date];
+                }
+
+                saveToLocalStorage();
+                if (firebaseInitialized && isOnline) {
+                    saveToFirebase();
+                }
+
+                updateDashboard();
+                updateHistory();
+                showNotification('Transaksi berhasil dihapus!', 'success');
+            }
+
+            closeModal('deleteModal');
+            deleteTargetId = null;
+        }
+
+        // Show clear data modal
+        function showClearDataModal() {
+            document.getElementById('clearDataModal').style.display = 'block';
+            document.getElementById('confirmText').value = '';
+        }
+
+        // Confirm clear all data
+        function confirmClearData() {
+            const confirmText = document.getElementById('confirmText').value;
+            
+            if (confirmText !== 'HAPUS SEMUA') {
+                showNotification('Ketik "HAPUS SEMUA" untuk mengkonfirmasi!', 'error');
+                return;
+            }
+
+            expenseDatabase = {};
+            budgetSettings = {};
+            
+            saveToLocalStorage();
+            if (firebaseInitialized && isOnline) {
+                saveToFirebase();
+            }
+
+            updateDashboard();
+            updateHistory();
+            closeModal('clearDataModal');
+            showNotification('Semua data telah dihapus!', 'success');
+        }
+
+        // Close modal
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Export to Excel
+        function exportToExcel() {
+            if (Object.keys(expenseDatabase).length === 0) {
+                showNotification('Tidak ada data untuk diekspor!', 'error');
+                return;
+            }
+
+            const data = [];
+            
+            // Header
+            data.push(['Tanggal', 'Kategori', 'Deskripsi', 'Nominal', 'Hari']);
+
+            // Collect all expenses
+            const allExpenses = [];
+            Object.keys(expenseDatabase).forEach(date => {
+                Object.values(expenseDatabase[date]).forEach(expense => {
+                    allExpenses.push({...expense, date});
+                });
+            });
+
+            // Sort by date
+            allExpenses.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            // Data rows
+            allExpenses.forEach(expense => {
+                const date = new Date(expense.date + 'T00:00:00');
+                const categoryInfo = categories[expense.category];
+                
+                data.push([
+                    date.toLocaleDateString('id-ID'),
+                    categoryInfo.name,
+                    expense.description || '',
+                    expense.amount,
+                    date.toLocaleDateString('id-ID', { weekday: 'long' })
+                ]);
+            });
+
+            // Summary section
+            data.push([]);
+            data.push(['=== RINGKASAN BULANAN ===']);
+            data.push(['Bulan', 'Total Pengeluaran', 'Rata-rata/Hari']);
+
+            // Calculate monthly summaries
+            const monthlyData = {};
+            allExpenses.forEach(expense => {
+                const monthKey = expense.date.substring(0, 7);
+                if (!monthlyData[monthKey]) {
+                    monthlyData[monthKey] = { total: 0, dates: new Set() };
+                }
+                monthlyData[monthKey].total += expense.amount;
+                monthlyData[monthKey].dates.add(expense.date);
+            });
+
+            Object.keys(monthlyData).sort().forEach(monthKey => {
+                const monthData = monthlyData[monthKey];
+                const [year, month] = monthKey.split('-');
+                const monthName = new Date(year, month - 1).toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
+                const avgPerDay = monthData.total / monthData.dates.size;
+                
+                data.push([monthName, monthData.total, Math.round(avgPerDay)]);
+            });
+
+            // Category summary
+            data.push([]);
+            data.push(['=== RINGKASAN KATEGORI ===']);
+            data.push(['Kategori', 'Total Pengeluaran', 'Persentase']);
+
+            const categoryTotals = {};
+            let grandTotal = 0;
+            
+            allExpenses.forEach(expense => {
+                categoryTotals[expense.category] = (categoryTotals[expense.category] || 0) + expense.amount;
+                grandTotal += expense.amount;
+            });
+
+            Object.entries(categoryTotals)
+                .sort((a, b) => b[1] - a[1])
+                .forEach(([category, total]) => {
+                    const percentage = ((total / grandTotal) * 100).toFixed(1);
+                    data.push([categories[category].name, total, percentage + '%']);
+                });
+
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(data);
+
+            // Auto-fit columns
+            const colWidths = data[0].map((_, i) => {
+                return Math.max(...data.map(row => row[i] ? row[i].toString().length : 0));
+            });
+            ws['!cols'] = colWidths.map(w => ({ wch: Math.min(w + 2, 50) }));
+
+            XLSX.utils.book_append_sheet(wb, ws, "Pengeluaran");
+
+            // Generate filename
+            const now = new Date();
+            const filename = `expense_tracker_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}.xlsx`;
+
+            XLSX.writeFile(wb, filename);
+            showNotification(`Data berhasil diekspor: ${filename}`, 'success');
+        }
+
+        // Import data from Excel/CSV
+        function importData() {
+            const fileInput = document.getElementById('importFile');
+            const file = fileInput.files[0];
+
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = e.target.result;
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    // Skip header row
+                    const rows = jsonData.slice(1);
+                    let importCount = 0;
+
+                    rows.forEach(row => {
+                        if (row.length >= 4) {
+                            const [dateStr, categoryName, description, amount] = row;
+                            
+                            if (!dateStr || !amount) return;
+
+                            // Parse date
+                            let date;
+                            if (dateStr instanceof Date) {
+                                date = getDateString(dateStr);
+                            } else {
+                                // Try to parse date string
+                                const parsedDate = new Date(dateStr);
+                                if (isNaN(parsedDate)) return;
+                                date = getDateString(parsedDate);
+                            }
+
+                            // Find category by name
+                            let category = 'others';
+                            Object.entries(categories).forEach(([key, info]) => {
+                                if (info.name.toLowerCase() === categoryName?.toLowerCase()) {
+                                    category = key;
+                                }
+                            });
+
+                            const expense = {
+                                id: generateId(),
+                                amount: parseFloat(amount) || 0,
+                                category: category,
+                                description: description || '',
+                                date: date,
+                                timestamp: new Date().getTime()
+                            };
+
+                            // Add to database
+                            if (!expenseDatabase[date]) {
+                                expenseDatabase[date] = {};
+                            }
+                            expenseDatabase[date][expense.id] = expense;
+                            importCount++;
+                        }
+                    });
+
+                    if (importCount > 0) {
+                        saveToLocalStorage();
+                        if (firebaseInitialized && isOnline) {
+                            saveToFirebase();
+                        }
+                        
+                        updateDashboard();
+                        updateHistory();
+                        showNotification(`Berhasil mengimpor ${importCount} transaksi!`, 'success');
+                    } else {
+                        showNotification('Tidak ada data valid yang dapat diimpor!', 'error');
+                    }
+
+                } catch (error) {
+                    console.error('Import error:', error);
+                    showNotification('Error saat mengimpor file!', 'error');
+                }
+            };
+
+            reader.readAsBinaryString(file);
+            fileInput.value = ''; // Reset input
+        }
+
+        // Update budget display
+        function updateBudgetDisplay() {
+            const monthlyInput = document.getElementById('monthlyBudget');
+            if (budgetSettings.monthly) {
+                monthlyInput.value = budgetSettings.monthly;
+            }
+
+            // Update category budgets (placeholder for future feature)
+            const categoryBudgetsContainer = document.getElementById('categoryBudgets');
+            categoryBudgetsContainer.innerHTML = `
+                <p style="color: var(--text-secondary); font-style: italic; text-align: center; padding: 20px;">
+                    Fitur budget per kategori akan segera hadir!
+                </p>
+            `;
+        }
+
+        // Reminder functions
+        function toggleReminder() {
+            const checkbox = document.getElementById('dailyReminder');
+            const isEnabled = checkbox.checked;
+            
+            if (isEnabled && 'Notification' in window) {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        localStorage.setItem('dailyReminderEnabled', 'true');
+                        setupDailyReminder();
+                        showNotification('Reminder harian diaktifkan!', 'success');
+                    } else {
+                        checkbox.checked = false;
+                        showNotification('Izin notifikasi diperlukan untuk reminder!', 'error');
+                    }
+                });
+            } else {
+                localStorage.setItem('dailyReminderEnabled', 'false');
+                showNotification('Reminder harian dinonaktifkan!', 'info');
+            }
+        }
+
+        function setReminderTime() {
+            const time = document.getElementById('reminderTime').value;
+            localStorage.setItem('reminderTime', time);
+            
+            if (localStorage.getItem('dailyReminderEnabled') === 'true') {
+                setupDailyReminder();
+            }
+        }
+
+        function setupDailyReminder() {
+            // This would typically use service workers for persistent reminders
+            // For now, we'll just check when the app is open
+            const reminderTime = localStorage.getItem('reminderTime') || '20:00';
+            console.log('Reminder set for', reminderTime);
+        }
+
+        function checkDailyReminder() {
+            if (localStorage.getItem('dailyReminderEnabled') !== 'true') return;
+            
+            const today = getDateString(new Date());
+            const lastReminder = localStorage.getItem('lastReminderDate');
+            
+            if (lastReminder !== today) {
+                const todayExpenses = expenseDatabase[today];
+                if (!todayExpenses || Object.keys(todayExpenses).length === 0) {
+                    // Show reminder if no expenses today
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        new Notification('Expense Tracker', {
+                            body: 'Jangan lupa catat pengeluaran hari ini!',
+                            icon: '/favicon.ico'
+                        });
+                    }
+                }
+                localStorage.setItem('lastReminderDate', today);
+            }
+        }
+
+        // Online/offline status monitoring
+        window.addEventListener('online', () => {
+            isOnline = true;
+            if (firebaseInitialized) {
+                updateSyncStatus('connected', 'Kembali Online');
+                saveToFirebase();
+            }
+        });
+
+        window.addEventListener('offline', () => {
+            isOnline = false;
+            updateSyncStatus('disconnected', 'Offline - Data Tersimpan Lokal');
+        });
+
+        // Event listeners
+        document.getElementById('expenseAmount').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addExpense();
+            }
+        });
+
+        document.getElementById('monthlyBudget').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                setBudget();
+            }
+        });
+
+        // Close modals when clicking outside
+        window.addEventListener('click', function(e) {
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                if (e.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        });
+
+        // Initialize application
+        function init() {
+            // Set theme
+            document.body.setAttribute('data-theme', currentTheme);
+            const themeButton = document.querySelector('.theme-toggle');
+            themeButton.textContent = currentTheme === 'dark' ? '☀️ Mode Terang' : '🌙 Mode Gelap';
+
+            // Load data from localStorage
+            loadFromLocalStorage();
+            
+            // Update UI
+            updateCurrentDate();
+            updateDashboard();
+            updateBudgetDisplay();
+            
+            // Initialize Firebase
+            initializeFirebase();
+            
+            // Load reminder settings
+            const reminderEnabled = localStorage.getItem('dailyReminderEnabled') === 'true';
+            const reminderTime = localStorage.getItem('reminderTime') || '20:00';
+            document.getElementById('dailyReminder').checked = reminderEnabled;
+            document.getElementById('reminderTime').value = reminderTime;
+            
+            // Set up periodic updates
+            setInterval(updateCurrentDate, 60000); // Update date every minute
+            setInterval(checkDailyReminder, 300000); // Check reminder every 5 minutes
+            
+            // Add animation class to container
+            document.querySelector('.container').classList.add('fade-in');
+            
+            console.log('Enhanced Expense Tracker berhasil dimuat!');
+            showNotification('Selamat datang di Expense Tracker Pro! 🎉', 'success');
+        }
+
+        // Run when page loads
+        window.onload = init;
+    </script>
+</body>
+</html>
